@@ -1,0 +1,1 @@
+{"name":"Veynor OS","short_name":"Veynor","description":"The universal Veynor operating system shell.","start_url":"/veynor-os-web/","display":"fullscreen","background_color":"#050507","theme_color":"#050507","lang":"en","scope":"/veynor-os-web/","orientation":"any","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

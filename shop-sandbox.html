@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; base-uri 'none'; form-action 'none'">
+<title>App</title>
+<style>html,body{margin:0;min-height:100%;font:16px system-ui,sans-serif;background:#fff;color:#111}</style>
+<script>
+// The locked frame a shop app runs in. It has no network of its own (the policy above allows none) and no storage. It can only
+// message the device, and only ask for the three things in window.veynor; the device asks the user before it answers.
+(function () {
+  var started = false;
+  var counter = 0;
+  var pending = new Map();
+  function send(message) { parent.postMessage(message, '*'); }
+  function show(value) { if (typeof value === 'string') return value; try { return JSON.stringify(value); } catch (e) { return String(value); } }
+  ['log', 'info', 'warn', 'error'].forEach(function (level) {
+    console[level] = function () { send({ type: 'log', level: level === 'info' ? 'log' : level, text: Array.prototype.map.call(arguments, show).join(' ') }); };
+  });
+  addEventListener('error', function (event) { send({ type: 'error', text: String(event.message || event.error) }); });
+  addEventListener('unhandledrejection', function (event) { send({ type: 'error', text: 'Unhandled: ' + String((event.reason && event.reason.message) || event.reason) }); });
+  function call(kind, arg) {
+    return new Promise(function (resolve, reject) { var id = ++counter; pending.set(id, { resolve: resolve, reject: reject }); send({ type: 'call', id: id, kind: kind, arg: arg }); });
+  }
+  window.veynor = Object.freeze({
+    camera: Object.freeze({ snapshot: function () { return call('camera.snapshot'); } }),
+    network: Object.freeze({ fetch: function (url) { return call('network.fetch', url); } }),
+    storage: Object.freeze({ get: function (key) { return call('storage.get', key); }, set: function (key, value) { return call('storage.set', [key, value]); } })
+  });
+  // A picture of what the app has drawn, as a small JPEG, only when the device asks for one (a developer's live view). The page is
+  // turned into a picture inside this frame, so nothing leaves it except the finished picture. The same as the IDE's own capture.
+  function capture() {
+    var width = Math.max(1, window.innerWidth), height = Math.max(1, window.innerHeight);
+    var body = document.body.cloneNode(true);
+    Array.prototype.forEach.call(body.querySelectorAll('script'), function (n) { n.remove(); });
+    var background = getComputedStyle(document.body).backgroundColor;
+    if (background === 'rgba(0, 0, 0, 0)' || background === 'transparent') background = getComputedStyle(document.documentElement).backgroundColor;
+    if (background === 'rgba(0, 0, 0, 0)' || background === 'transparent') background = '#fff';
+    var styles = Array.prototype.map.call(document.querySelectorAll('style'), function (n) { return n.outerHTML; }).join('');
+    var xhtml = '<div xmlns="http://www.w3.org/1999/xhtml" style="width:' + width + 'px;height:' + height + 'px;margin:0;font:16px system-ui,sans-serif;background:' + background + ';color:#111">' + styles + new XMLSerializer().serializeToString(body).replace(/^<body/, '<div').replace(/<\/body>$/, '</div>') + '</div>';
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '"><foreignObject width="100%" height="100%">' + xhtml + '</foreignObject></svg>';
+    var image = new Image();
+    image.onload = function () {
+      try {
+        var scale = Math.min(1, 320 / width);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(width * scale)); canvas.height = Math.max(1, Math.round(height * scale));
+        var context = canvas.getContext('2d');
+        context.fillStyle = background; context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        var qualities = [0.6, 0.4, 0.25, 0.15], picture = '';
+        for (var i = 0; i < qualities.length; i++) { picture = canvas.toDataURL('image/jpeg', qualities[i]); if (picture.length <= 60000) break; }
+        send(picture.length <= 60000 ? { type: 'screenshot', image: picture } : { type: 'screenshot', error: 'too big' });
+      } catch (e) { send({ type: 'screenshot', error: 'cannot capture' }); }
+    };
+    image.onerror = function () { send({ type: 'screenshot', error: 'cannot capture' }); };
+    image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  addEventListener('message', function (event) {
+    if (event.source !== parent) return;
+    var m = event.data;
+    if (!m || typeof m !== 'object') return;
+    if (m.type === 'capture') { capture(); return; }
+    if (m.type === 'result') {
+      var waiting = pending.get(m.id);
+      if (!waiting) return;
+      pending.delete(m.id);
+      if (m.ok) waiting.resolve(m.value); else waiting.reject(new Error(m.error || 'Refused'));
+    } else if (m.type === 'run' && !started) {
+      started = true;
+      var map = document.createElement('script');
+      map.type = 'importmap';
+      map.textContent = JSON.stringify({ imports: m.imports });
+      document.head.appendChild(map);
+      var run = document.createElement('script');
+      run.type = 'module';
+      run.textContent = 'import ' + JSON.stringify(m.entry);
+      document.head.appendChild(run);
+    }
+  });
+  send({ type: 'ready' });
+})();
+</script></head><body></body></html>

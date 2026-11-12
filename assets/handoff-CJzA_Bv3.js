@@ -1,0 +1,1 @@
+import{m as e}from"./vault-CqnXAQDP.js";var t=e({dial:null,compose:null});export{t};
