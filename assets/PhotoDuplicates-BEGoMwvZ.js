@@ -1,0 +1,1 @@
+import{u as e}from"./index-DNBcqRCZ.js";import t from"./DuplicateFinder-DLwHUw2j.js";var n=e();function r(e){return(0,n.createElement)(t,{...e,photosOnly:!0})}export{r as default};

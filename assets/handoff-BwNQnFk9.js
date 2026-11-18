@@ -1,0 +1,1 @@
+import{m as e}from"./vault-Bmm2BxTx.js";var t=e({dial:null,compose:null});export{t};

@@ -1,0 +1,1 @@
+import{u as e}from"./index-DNBcqRCZ.js";import{p as t}from"./system-CgspAxYv.js";var n=e();function r(e,r,i=`main`){let a=(0,n.useEffectEvent)(r);(0,n.useEffect)(()=>{let n=t.get().windows.find(t=>t.id===e)?.target;return t.subscribe(()=>{let r=t.get().windows.find(t=>t.id===e)?.target;r&&r!==n&&(r.tool??`main`)===i&&(n=r,a(r))})},[e,i])}export{r as t};
